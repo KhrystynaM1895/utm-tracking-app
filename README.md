@@ -1,237 +1,403 @@
-# Shopify App Template - React Router
+# UTM Tracking App
 
-This is a template for building a [Shopify app](https://shopify.dev/docs/apps/getting-started) using [React Router](https://reactrouter.com/). It was forked from the [Shopify Remix app template](https://github.com/Shopify/shopify-app-template-remix) and converted to React Router.
+A Shopify app that tracks `utm_source` campaign slugs from storefront visits through checkout to order attribution. Merchants register UTM sources in the admin, enable a theme app embed on the storefront, and view capture events and order reports.
 
-Rather than cloning this repo, follow the [Quick Start steps](https://github.com/Shopify/shopify-app-template-react-router#quick-start).
+Built with [React Router](https://reactrouter.com/), [@shopify/shopify-app-react-router](https://shopify.dev/docs/api/shopify-app-react-router), and [Prisma](https://www.prisma.io/) (PostgreSQL).
 
-Visit the [`shopify.dev` documentation](https://shopify.dev/docs/api/shopify-app-react-router) for more details on the React Router app package.
+## Features
 
-## Upgrading from Remix
+- Register `utm_source` slugs per shop (e.g. `instagram`, `google-ads`)
+- Capture storefront visits via a theme app embed and app proxy
+- Persist UTM data in cart attributes and line item properties
+- Copy UTM source to order metafields on checkout
+- Attribute orders to UTM sources for reporting
+- GDPR-compliant data handling (customer/shop redaction webhooks)
 
-If you have an existing Remix app that you want to upgrade to React Router, please follow the [upgrade guide](https://github.com/Shopify/shopify-app-template-react-router/wiki/Upgrading-from-Remix). Otherwise, please follow the quick start guide below.
+---
 
-## Quick start
+## How to run it
 
 ### Prerequisites
 
-Before you begin, you'll need to [download and install the Shopify CLI](https://shopify.dev/docs/apps/tools/cli/getting-started) if you haven't already.
+- [Node.js](https://nodejs.org/) `>=20.19 <22` or `>=22.12`
+- [Shopify CLI](https://shopify.dev/docs/apps/tools/cli/getting-started)
+- [Docker](https://www.docker.com/) (for local PostgreSQL) or another PostgreSQL instance
+- A [Shopify Partner account](https://partners.shopify.com/) and a development store
 
-### Setup
+### 1. Install dependencies
 
 ```shell
-shopify app init --template=https://github.com/Shopify/shopify-app-template-react-router
+npm install
 ```
 
-### Local Development
+This installs the root app and workspace extensions under `extensions/*`.
+
+### 2. Start PostgreSQL
+
+The app uses PostgreSQL (not SQLite). Start the bundled database with Docker Compose:
 
 ```shell
+docker compose up -d
+```
+
+This runs PostgreSQL on port **5433** with:
+
+| Setting  | Value          |
+| -------- | -------------- |
+| User     | `utm`          |
+| Password | `utm`          |
+| Database | `utm_tracking` |
+| URL      | `postgresql://utm:utm@localhost:5433/utm_tracking` |
+
+### 3. Configure environment variables
+
+The Shopify CLI sets most variables automatically during `shopify app dev`. For manual setup or production, configure:
+
+| Variable              | Description                                      |
+| --------------------- | ------------------------------------------------ |
+| `DATABASE_URL`        | PostgreSQL connection string                     |
+| `SHOPIFY_API_KEY`     | App API key from Partner Dashboard               |
+| `SHOPIFY_API_SECRET`  | App API secret (required — app refuses to start without it) |
+| `SHOPIFY_APP_URL`     | Public URL of the app (tunnel URL in dev)        |
+| `SCOPES`              | `write_app_proxy,write_orders`                   |
+| `SHOP_CUSTOM_DOMAIN`  | Optional custom shop domain                      |
+| `NODE_ENV`            | Set to `production` when deployed                |
+
+Example for local development:
+
+```shell
+export DATABASE_URL="postgresql://utm:utm@localhost:5433/utm_tracking"
+```
+
+### 4. Run database migrations
+
+```shell
+npm run setup
+```
+
+This runs `prisma generate` and `prisma migrate deploy`, creating the `sessions`, `utm_sources`, `utm_captures`, and `utm_orders` tables.
+
+### 5. Start local development
+
+```shell
+npm run dev
+# or
 shopify app dev
 ```
 
-Press P to open the URL to your app. Once you click install, you can start development.
+The CLI will:
 
-Local development is powered by [the Shopify CLI](https://shopify.dev/docs/apps/tools/cli). It logs into your account, connects to an app, provides environment variables, updates remote config, creates a tunnel and provides commands to generate extensions.
+- Log into your Partner account
+- Link or create the app
+- Start a tunnel and set `SHOPIFY_APP_URL`
+- Run Prisma migrations before starting the dev server
+- Deploy extensions to your dev store
 
-### Authenticating and querying data
+Press **P** in the terminal to open the app URL, then install the app on your development store.
 
-To authenticate and query data you can use the `shopify` const that is exported from `/app/shopify.server.js`:
+### 6. Enable the theme app embed
 
-```js
-export async function loader({ request }) {
-  const { admin } = await shopify.authenticate.admin(request);
+After the app is installed:
 
-  const response = await admin.graphql(`
-    {
-      products(first: 25) {
-        nodes {
-          title
-          description
-        }
-      }
-    }`);
+1. Open the app admin home page (**Sources**)
+2. Click **Activate UTM Tracking app embed**, or go to **Online Store → Themes → Customize → App embeds** and enable **UTM Tracking**
+3. Register at least one UTM source slug (e.g. `instagram`)
 
-  const {
-    data: {
-      products: { nodes },
-    },
-  } = await response.json();
+### 7. Test the flow
 
-  return nodes;
-}
+Visit your storefront with a registered slug:
+
+```
+https://your-store.myshopify.com/?utm_source=instagram
 ```
 
-This template comes pre-configured with examples of:
+Then verify:
 
-1. Setting up your Shopify app in [/app/shopify.server.ts](https://github.com/Shopify/shopify-app-template-react-router/blob/main/app/shopify.server.ts)
-2. Querying data using Graphql. Please see: [/app/routes/app.\_index.tsx](https://github.com/Shopify/shopify-app-template-react-router/blob/main/app/routes/app._index.tsx).
-3. Responding to webhooks. Please see [/app/routes/webhooks.tsx](https://github.com/Shopify/shopify-app-template-react-router/blob/main/app/routes/webhooks.app.uninstalled.tsx).
-4. Using metafields, metaobjects, and declarative custom data definitions. Please see [/app/routes/app.\_index.tsx](https://github.com/Shopify/shopify-app-template-react-router/blob/main/app/routes/app._index.tsx) and [shopify.app.toml](https://github.com/Shopify/shopify-app-template-react-router/blob/main/shopify.app.toml).
+- A row appears on **Captures** in the app admin
+- Cart attributes include `utm_source=instagram`
+- After placing an order, the order metafield `custom.utm_source` is set
+- **Reports** shows the attributed order count
 
-Please read the [documentation for @shopify/shopify-app-react-router](https://shopify.dev/docs/api/shopify-app-react-router) to see what other API's are available.
+### Production build and deployment
 
-## Shopify Dev MCP
-
-This template is configured with the Shopify Dev MCP. This instructs [Cursor](https://cursor.com/), [GitHub Copilot](https://github.com/features/copilot) and [Claude Code](https://claude.com/product/claude-code) and [Google Gemini CLI](https://github.com/google-gemini/gemini-cli) to use the Shopify Dev MCP.
-
-For more information on the Shopify Dev MCP please read [the documentation](https://shopify.dev/docs/apps/build/devmcp).
-
-## Deployment
-
-### Application Storage
-
-This template uses [Prisma](https://www.prisma.io/) to store session data, by default using an [SQLite](https://www.sqlite.org/index.html) database.
-The database is defined as a Prisma schema in `prisma/schema.prisma`.
-
-This use of SQLite works in production if your app runs as a single instance.
-The database that works best for you depends on the data your app needs and how it is queried.
-Here’s a short list of databases providers that provide a free tier to get started:
-
-| Database   | Type             | Hosters                                                                                                                                                                                                                                    |
-| ---------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| MySQL      | SQL              | [Digital Ocean](https://www.digitalocean.com/products/managed-databases-mysql), [Planet Scale](https://planetscale.com/), [Amazon Aurora](https://aws.amazon.com/rds/aurora/), [Google Cloud SQL](https://cloud.google.com/sql/docs/mysql) |
-| PostgreSQL | SQL              | [Digital Ocean](https://www.digitalocean.com/products/managed-databases-postgresql), [Amazon Aurora](https://aws.amazon.com/rds/aurora/), [Google Cloud SQL](https://cloud.google.com/sql/docs/postgres)                                   |
-| Redis      | Key-value        | [Digital Ocean](https://www.digitalocean.com/products/managed-databases-redis), [Amazon MemoryDB](https://aws.amazon.com/memorydb/)                                                                                                        |
-| MongoDB    | NoSQL / Document | [Digital Ocean](https://www.digitalocean.com/products/managed-databases-mongodb), [MongoDB Atlas](https://www.mongodb.com/atlas/database)                                                                                                  |
-
-To use one of these, you can use a different [datasource provider](https://www.prisma.io/docs/reference/api-reference/prisma-schema-reference#datasource) in your `schema.prisma` file, or a different [SessionStorage adapter package](https://github.com/Shopify/shopify-api-js/blob/main/packages/shopify-api/docs/guides/session-storage.md).
-
-### Build
-
-Build the app by running the command below with the package manager of your choice:
-
-Using yarn:
-
-```shell
-yarn build
-```
-
-Using npm:
+**Build:**
 
 ```shell
 npm run build
 ```
 
-Using pnpm:
+**Start (after build):**
 
 ```shell
-pnpm run build
+npm run start
 ```
 
-## Hosting
+**Docker:**
 
-When you're ready to set up your app in production, you can follow [our deployment documentation](https://shopify.dev/docs/apps/launch/deployment) to host it externally. From there, you have a few options:
+```shell
+docker build -t utm-tracking-app .
+docker run -p 3000:3000 \
+  -e DATABASE_URL="postgresql://..." \
+  -e SHOPIFY_API_KEY="..." \
+  -e SHOPIFY_API_SECRET="..." \
+  -e SHOPIFY_APP_URL="https://your-app.example.com" \
+  -e SCOPES="write_app_proxy,write_orders" \
+  -e NODE_ENV=production \
+  utm-tracking-app
+```
 
-- [Google Cloud Run](https://shopify.dev/docs/apps/launch/deployment/deploy-to-google-cloud-run): This tutorial is written specifically for this example repo, and is compatible with the extended steps included in the subsequent [**Build your app**](tutorial) in the **Getting started** docs. It is the most detailed tutorial for taking a React Router-based Shopify app and deploying it to production. It includes configuring permissions and secrets, setting up a production database, and even hosting your apps behind a load balancer across multiple regions.
-- [Fly.io](https://fly.io/docs/js/shopify/): Leverages the Fly.io CLI to quickly launch Shopify apps to a single machine.
-- [Render](https://render.com/docs/deploy-shopify-app): This tutorial guides you through using Docker to deploy and install apps on a Dev store.
-- [Manual deployment guide](https://shopify.dev/docs/apps/launch/deployment/deploy-to-hosting-service): This resource provides general guidance on the requirements of deployment including environment variables, secrets, and persistent data.
+The Docker image runs `npm run setup` (migrations) then `npm run start`.
 
-When you reach the step for [setting up environment variables](https://shopify.dev/docs/apps/deployment/web#set-env-vars), you also need to set the variable `NODE_ENV=production`.
+**Deploy extensions and app config to Shopify:**
 
-## Gotchas / Troubleshooting
+```shell
+npm run deploy
+```
+
+See [Shopify deployment docs](https://shopify.dev/docs/apps/launch/deployment) for hosting options (Google Cloud Run, Fly.io, Render, etc.).
+
+### Useful scripts
+
+| Script            | Description                              |
+| ----------------- | ---------------------------------------- |
+| `npm run dev`     | Start Shopify CLI dev server             |
+| `npm run build`   | Production build                         |
+| `npm run start`   | Serve production build                   |
+| `npm run setup`   | Generate Prisma client + run migrations  |
+| `npm run deploy`  | Deploy app and extensions to Shopify     |
+| `npm run lint`    | Run ESLint                               |
+| `npm run typecheck` | Type-check the app                     |
+
+---
+
+## How it works
+
+### Architecture overview
+
+```mermaid
+flowchart LR
+  subgraph Storefront
+    URL["URL ?utm_source=slug"]
+    Embed["Theme app embed\nutm-capture.js"]
+    Cart["Cart attributes\n+ line item properties"]
+  end
+
+  subgraph AppProxy["App proxy /apps/utm-tracking/*"]
+    Sources["GET /sources"]
+    Capture["POST /capture"]
+  end
+
+  subgraph Backend["React Router app"]
+    Admin["Admin UI"]
+    Webhook["Webhooks"]
+    DB[(PostgreSQL)]
+  end
+
+  subgraph Checkout
+    CheckoutExt["Checkout UI extension"]
+    Order["Order + metafield\ncustom.utm_source"]
+  end
+
+  URL --> Embed
+  Embed --> Sources
+  Embed --> Capture
+  Embed --> Cart
+  Sources --> DB
+  Capture --> DB
+  Cart --> CheckoutExt
+  CheckoutExt --> Order
+  Order --> Webhook
+  Webhook --> DB
+  Admin --> DB
+```
+
+### End-to-end flow
+
+1. **Register sources** — The merchant creates UTM source slugs in the admin (`/app`). Each slug maps to a database row with a unique integer ID per shop.
+
+2. **Storefront capture** — The theme app embed (`extensions/utm-tracker`) runs on every page when enabled:
+   - Reads `?utm_source=` from the URL
+   - Fetches registered slugs from the app proxy (`GET /apps/utm-tracking/sources`)
+   - Ignores unknown slugs
+   - Posts a capture event (`POST /apps/utm-tracking/capture`)
+   - Saves the source slug in `sessionStorage` / `localStorage`
+   - Sets cart attribute `utm_source` and line item property `_utm_source`
+
+3. **Checkout** — The checkout UI extension (`extensions/utm-checkout`) reads the UTM slug from line item properties or `localStorage` and sets the checkout attribute `utm_source`.
+
+4. **Order creation** — The `orders/create` webhook handler:
+   - Reads `utm_source` from order `note_attributes` (cart flow) or line item properties (Buy now flow)
+   - Writes the value to order metafield `custom.utm_source` via Admin GraphQL
+   - Records an `utm_orders` row linking the order to the source
+
+5. **Reporting** — The **Reports** page aggregates order counts per UTM source. **Captures** lists recent storefront visit events.
+
+### Admin UI
+
+| Route               | Purpose                                      |
+| ------------------- | -------------------------------------------- |
+| `/app`              | Register UTM sources, setup instructions     |
+| `/app/utm-captures` | View last 100 storefront capture events      |
+| `/app/reports`      | Order counts grouped by UTM source           |
+
+Navigation is defined in `app/routes/app.tsx`.
+
+### App proxy API
+
+Configured in `shopify.app.toml`:
+
+```toml
+[app_proxy]
+url = "/api/utm-proxy"
+prefix = "apps"
+subpath = "utm-tracking"
+```
+
+Storefront requests are proxied to the backend with HMAC verification:
+
+| Storefront path                      | Backend route                         | Method | Purpose                          |
+| ------------------------------------ | ------------------------------------- | ------ | -------------------------------- |
+| `/apps/utm-tracking/sources`         | `api.utm-proxy.sources.tsx`           | GET    | Return `{ sources: { slug: id } }` |
+| `/apps/utm-tracking/capture`         | `api.utm-proxy.capture.tsx`           | POST   | Record a capture event           |
+
+The capture endpoint accepts:
+
+```json
+{
+  "utms": { "utm_source": "instagram" },
+  "landingUrl": "https://store.com/?utm_source=instagram",
+  "referrer": "https://google.com",
+  "sessionId": "uuid"
+}
+```
+
+**Deduplication:** Repeat captures from the same browser session and source within 30 minutes are ignored to prevent inflation from page refreshes.
+
+### Webhooks
+
+All webhooks are handled at `/api/shopify/webhook` (declared in `shopify.app.toml`):
+
+| Topic                    | Behavior                                              |
+| ------------------------ | ----------------------------------------------------- |
+| `app/uninstalled`        | Delete OAuth sessions for the shop                    |
+| `app/scopes_update`      | Update stored session scopes                          |
+| `orders/create`          | Write order metafield + create `utm_orders` record    |
+| `customers/data_request` | Log stored capture data for GDPR compliance           |
+| `customers/redact`       | Delete captures linked to the customer                |
+| `shop/redact`            | Purge all shop data (sources, captures, orders, sessions) |
+
+On install/re-auth, the `afterAuth` hook creates and pins the `custom.utm_source` order metafield definition via Admin GraphQL.
+
+### Database schema
+
+PostgreSQL schema in `prisma/schema.prisma`:
+
+| Model        | Purpose                                              |
+| ------------ | ---------------------------------------------------- |
+| `Session`    | Shopify OAuth sessions (Prisma session storage)      |
+| `UtmSource`  | Registered slugs per shop (`@@unique([shop, slug])`) |
+| `UtmCapture` | Storefront visit events                              |
+| `UtmOrder`   | Orders attributed to a UTM source                    |
+
+Relationships:
+
+- `UtmCapture` → `UtmSource` (many-to-one)
+- `UtmOrder` → `UtmSource` (many-to-one)
+
+### Extensions
+
+| Extension       | Type              | Location                         | Role                                      |
+| --------------- | ----------------- | -------------------------------- | ----------------------------------------- |
+| `utm-tracker`   | Theme app embed   | `extensions/utm-tracker/`        | Capture UTM on storefront, sync cart      |
+| `utm-checkout`  | Checkout UI       | `extensions/utm-checkout/`       | Copy UTM slug to checkout attributes      |
+
+The theme embed injects `utm-capture.js`, which:
+
+- Caches the source slug→id map for 5 minutes in `sessionStorage`
+- Generates a per-tab session ID for deduplication
+- Injects hidden `_utm_source` inputs into add-to-cart forms
+- Syncs existing cart line items with the current UTM slug
+
+### Key services
+
+| Service                    | File                                   | Responsibility                    |
+| -------------------------- | -------------------------------------- | --------------------------------- |
+| `UtmSourceService`         | `app/services/utm-source.server.ts`    | Slug validation, CRUD, slug map   |
+| `UtmCaptureService`        | `app/services/utm-capture.server.ts`   | Capture creation with dedup       |
+| `ensureUtmMetafieldDefinition` | `app/services/utm-metafield.server.ts` | Order metafield setup on auth |
+
+### Required Shopify scopes
+
+```
+write_app_proxy, write_orders
+```
+
+- `write_app_proxy` — Storefront capture and sources API via app proxy
+- `write_orders` — Write `custom.utm_source` order metafield on order creation
+
+### Project structure
+
+```
+app/
+  routes/
+    app._index.tsx              # UTM source management
+    app.utm-captures.tsx        # Capture event list
+    app.reports.tsx             # Order attribution report
+    api.utm-proxy.capture.tsx   # App proxy: record capture
+    api.utm-proxy.sources.tsx   # App proxy: list sources
+    api.shopify.webhook.tsx     # All webhook handlers
+  services/                     # Business logic
+  shopify.server.ts             # Shopify app config + afterAuth hook
+extensions/
+  utm-tracker/                  # Theme app embed
+  utm-checkout/                 # Checkout UI extension
+prisma/
+  schema.prisma                 # Database schema
+  migrations/                   # SQL migrations
+shopify.app.toml                # App config, scopes, webhooks, app proxy
+docker-compose.yml              # Local PostgreSQL
+```
+
+---
+
+## Troubleshooting
 
 ### Database tables don't exist
 
-If you get an error like:
-
-```
-The table `main.Session` does not exist in the current database.
-```
-
-Create the database for Prisma. Run the `setup` script in `package.json` using `npm`, `yarn` or `pnpm`.
-
-### Navigating/redirecting breaks an embedded app
-
-Embedded apps must maintain the user session, which can be tricky inside an iFrame. To avoid issues:
-
-1. Use `Link` from `react-router` or `@shopify/polaris`. Do not use `<a>`.
-2. Use `redirect` returned from `authenticate.admin`. Do not use `redirect` from `react-router`
-3. Use `useSubmit` from `react-router`.
-
-This only applies if your app is embedded, which it will be by default.
-
-### Webhooks: shop-specific webhook subscriptions aren't updated
-
-If you are registering webhooks in the `afterAuth` hook, using `shopify.registerWebhooks`, you may find that your subscriptions aren't being updated.
-
-Instead of using the `afterAuth` hook declare app-specific webhooks in the `shopify.app.toml` file. This approach is easier since Shopify will automatically sync changes every time you run `deploy` (e.g: `npm run deploy`). Please read these guides to understand more:
-
-1. [app-specific vs shop-specific webhooks](https://shopify.dev/docs/apps/build/webhooks/subscribe#app-specific-subscriptions)
-2. [Create a subscription tutorial](https://shopify.dev/docs/apps/build/webhooks/subscribe/get-started?deliveryMethod=https)
-
-If you do need shop-specific webhooks, keep in mind that the package calls `afterAuth` in 2 scenarios:
-
-- After installing the app
-- When an access token expires
-
-During normal development, the app won't need to re-authenticate most of the time, so shop-specific subscriptions aren't updated. To force your app to update the subscriptions, uninstall and reinstall the app. Revisiting the app will call the `afterAuth` hook.
-
-### Webhooks: Admin created webhook failing HMAC validation
-
-Webhooks subscriptions created in the [Shopify admin](https://help.shopify.com/en/manual/orders/notifications/webhooks) will fail HMAC validation. This is because the webhook payload is not signed with your app's secret key.
-
-The recommended solution is to use [app-specific webhooks](https://shopify.dev/docs/apps/build/webhooks/subscribe#app-specific-subscriptions) defined in your toml file instead. Test your webhooks by triggering events manually in the Shopify admin(e.g. Updating the product title to trigger a `PRODUCTS_UPDATE`).
-
-### Webhooks: Admin object undefined on webhook events triggered by the CLI
-
-When you trigger a webhook event using the Shopify CLI, the `admin` object will be `undefined`. This is because the CLI triggers an event with a valid, but non-existent, shop. The `admin` object is only available when the webhook is triggered by a shop that has installed the app. This is expected.
-
-Webhooks triggered by the CLI are intended for initial experimentation testing of your webhook configuration. For more information on how to test your webhooks, see the [Shopify CLI documentation](https://shopify.dev/docs/apps/tools/cli/commands#webhook-trigger).
-
-### Incorrect GraphQL Hints
-
-By default the [graphql.vscode-graphql](https://marketplace.visualstudio.com/items?itemName=GraphQL.vscode-graphql) extension for will assume that GraphQL queries or mutations are for the [Shopify Admin API](https://shopify.dev/docs/api/admin). This is a sensible default, but it may not be true if:
-
-1. You use another Shopify API such as the storefront API.
-2. You use a third party GraphQL API.
-
-If so, please update [.graphqlrc.ts](https://github.com/Shopify/shopify-app-template-react-router/blob/main/.graphqlrc.ts).
-
-### Using Defer & await for streaming responses
-
-By default the CLI uses a cloudflare tunnel. Unfortunately cloudflare tunnels wait for the Response stream to finish, then sends one chunk. This will not affect production.
-
-To test [streaming using await](https://reactrouter.com/api/components/Await#await) during local development we recommend [localhost based development](https://shopify.dev/docs/apps/build/cli-for-apps/networking-options#localhost-based-development).
-
-### "nbf" claim timestamp check failed
-
-This is because a JWT token is expired. If you are consistently getting this error, it could be that the clock on your machine is not in sync with the server. To fix this ensure you have enabled "Set time and date automatically" in the "Date and Time" settings on your computer.
-
-### Using MongoDB and Prisma
-
-If you choose to use MongoDB with Prisma, there are some gotchas in Prisma's MongoDB support to be aware of. Please see the [Prisma SessionStorage README](https://www.npmjs.com/package/@shopify/shopify-app-session-storage-prisma#mongodb).
-
-### Unable to require(`C:\...\query_engine-windows.dll.node`).
-
-Unable to require(`C:\...\query_engine-windows.dll.node`).
-The Prisma engines do not seem to be compatible with your system.
-
-query_engine-windows.dll.node is not a valid Win32 application.
-
-**Fix:** Set the environment variable:
+Run migrations:
 
 ```shell
-PRISMA_CLIENT_ENGINE_TYPE=binary
+npm run setup
 ```
 
-This forces Prisma to use the binary engine mode, which runs the query engine as a separate process and can work via emulation on Windows ARM64.
+### App refuses to start: `SHOPIFY_API_SECRET is not set`
+
+Set `SHOPIFY_API_SECRET` in your environment. The app intentionally fails fast without it to prevent unverified webhook/proxy requests.
+
+### Captures not appearing
+
+1. Confirm the theme app embed is enabled in the theme editor
+2. Confirm the UTM slug is registered in the admin **Sources** page
+3. Confirm the app has the `write_app_proxy` scope (re-install if needed)
+4. Check that app proxy paths match the theme embed settings (defaults: `/apps/utm-tracking/capture` and `/apps/utm-tracking/sources`)
+
+### Orders not attributed in Reports
+
+1. Confirm the checkout UI extension is deployed (`npm run deploy`)
+2. Verify cart attributes or line item properties contain `utm_source` before checkout
+3. Check server logs for `orders/create` webhook errors or missing admin session
+
+### Embedded app navigation issues
+
+Use `Link` from `react-router` or Polaris — not raw `<a>` tags. Use `redirect` from `authenticate.admin`, not from `react-router`.
+
+---
 
 ## Resources
 
-React Router:
-
-- [React Router docs](https://reactrouter.com/home)
-
-Shopify:
-
-- [Intro to Shopify apps](https://shopify.dev/docs/apps/getting-started)
 - [Shopify App React Router docs](https://shopify.dev/docs/api/shopify-app-react-router)
 - [Shopify CLI](https://shopify.dev/docs/apps/tools/cli)
-- [Shopify App Bridge](https://shopify.dev/docs/api/app-bridge-library).
-- [Polaris Web Components](https://shopify.dev/docs/api/app-home/polaris-web-components).
-- [App extensions](https://shopify.dev/docs/apps/app-extensions/list)
-- [Shopify Functions](https://shopify.dev/docs/api/functions)
-
-Internationalization:
-
-- [Internationalizing your app](https://shopify.dev/docs/apps/best-practices/internationalization/getting-started)
+- [App proxy](https://shopify.dev/docs/apps/build/online-store/app-proxies)
+- [Theme app extensions](https://shopify.dev/docs/apps/build/online-store/theme-app-extensions)
+- [Checkout UI extensions](https://shopify.dev/docs/api/checkout-ui-extensions)
+- [React Router docs](https://reactrouter.com/home)
