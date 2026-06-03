@@ -1,0 +1,7 @@
+api_version = "2025-10"
+
+[[extensions]]
+uid = "57858f3b-7c53-bc09-2146-ba1c155a3c7409502ccd9"
+type = "theme"
+name = "UTM Tracking"
+handle = "utm-tracker"

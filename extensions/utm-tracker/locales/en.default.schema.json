@@ -1,0 +1,13 @@
+{
+  "name": "UTM Tracking",
+  "settings": {
+    "capture_path": {
+      "label": "Capture API path",
+      "info": "Must match app proxy subpath if customized in Shopify Admin."
+    },
+    "sources_path": {
+      "label": "Sources API path",
+      "info": "App proxy path that returns registered utm_source slugs."
+    }
+  }
+}

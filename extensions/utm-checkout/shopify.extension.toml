@@ -1,0 +1,11 @@
+api_version = "2025-07"
+
+[[extensions]]
+uid = "b32c242a-bff6-89d6-026b-244f8fb9b8a73ad493fc22"
+type = "ui_extension"
+name = "UTM Checkout"
+handle = "utm-checkout"
+
+  [[extensions.targeting]]
+  module = "./src/index.tsx"
+  target = "purchase.checkout.block.render"

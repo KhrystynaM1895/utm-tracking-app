@@ -1,0 +1,30 @@
+<script type="application/json" id="utm-tracker-config">
+  {
+    "capturePath": {{ block.settings.capture_path | json }},
+    "sourcesPath": {{ block.settings.sources_path | json }}
+  }
+</script>
+
+{% schema %}
+{
+  "name": "UTM Tracking",
+  "target": "body",
+  "javascript": "utm-capture.js",
+  "settings": [
+    {
+      "type": "text",
+      "id": "capture_path",
+      "label": "Capture API path",
+      "default": "/apps/utm-tracking/capture",
+      "info": "Must match app proxy subpath if customized in Shopify Admin."
+    },
+    {
+      "type": "text",
+      "id": "sources_path",
+      "label": "Sources API path",
+      "default": "/apps/utm-tracking/sources",
+      "info": "App proxy path that returns registered utm_source slugs."
+    }
+  ]
+}
+{% endschema %}

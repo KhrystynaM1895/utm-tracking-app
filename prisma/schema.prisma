@@ -1,0 +1,79 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Session {
+  id                  Int       @id @default(autoincrement())
+  sessionKey          String    @unique
+  shop                String
+  state               String
+  isOnline            Boolean   @default(false)
+  scope               String?
+  expires             DateTime?
+  accessToken         String
+  userId              BigInt?
+  firstName           String?
+  lastName            String?
+  email               String?
+  accountOwner        Boolean   @default(false)
+  locale              String?
+  collaborator        Boolean?  @default(false)
+  emailVerified       Boolean?  @default(false)
+  refreshToken        String?
+  refreshTokenExpires DateTime?
+
+  @@map("sessions")
+}
+
+model UtmSource {
+  id        Int      @id @default(autoincrement())
+  shop      String
+  slug      String
+  name      String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  captures UtmCapture[]
+  orders   UtmOrder[]
+
+  // [shop] alone is covered by the leftmost prefix of @@unique([shop, slug]).
+  @@unique([shop, slug])
+  @@map("utm_sources")
+}
+
+model UtmCapture {
+  id          Int       @id @default(autoincrement())
+  shop        String
+  utmSourceId Int       @map("utm_source_id")
+  utmSource   UtmSource @relation(fields: [utmSourceId], references: [id], onDelete: Restrict)
+  landingUrl  String    @map("landing_url")
+  referrer    String?
+  sessionId   String?   @map("session_id")
+  customerId  String?   @map("customer_id")
+  capturedAt  DateTime  @default(now()) @map("captured_at")
+
+  @@index([shop, capturedAt])
+  @@index([utmSourceId])
+  @@map("utm_captures")
+}
+
+model UtmOrder {
+  id          Int       @id @default(autoincrement())
+  shop        String
+  orderId     String    @map("order_id")
+  utmSourceId Int       @map("utm_source_id")
+  utmSource   UtmSource @relation(fields: [utmSourceId], references: [id], onDelete: Restrict)
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  // [shop] alone is covered by the leftmost prefix of @@unique([shop, orderId]).
+  @@unique([shop, orderId])
+  @@index([utmSourceId])
+  @@map("utm_orders")
+}

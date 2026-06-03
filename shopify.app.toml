@@ -1,0 +1,44 @@
+# Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
+
+client_id = "e181de64439e5d7b661e8026c1a15072"
+application_url = "https://positive-catfish-working.ngrok-free.app"
+embedded = true
+name = "utm-tracking-app"
+
+[access_scopes]
+# Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
+scopes = "write_app_proxy,write_orders"
+
+[app_proxy]
+url = "/api/utm-proxy"
+prefix = "apps"
+subpath = "utm-tracking"
+
+[webhooks]
+api_version = "2025-10"
+
+  [webhooks.privacy_compliance]
+  customer_data_request_url = "/api/shopify/webhook"
+  customer_deletion_url = "/api/shopify/webhook"
+  shop_deletion_url = "/api/shopify/webhook"
+
+  [[webhooks.subscriptions]]
+  uri = "/api/shopify/webhook"
+  topics = [ "app/uninstalled" ]
+
+  [[webhooks.subscriptions]]
+  uri = "/api/shopify/webhook"
+  topics = [ "app/scopes_update" ]
+
+  [[webhooks.subscriptions]]
+  uri = "/api/shopify/webhook"
+  topics = [ "orders/create" ]
+
+[auth]
+redirect_urls = [
+  "https://positive-catfish-working.ngrok-free.app/auth/callback",
+  "https://positive-catfish-working.ngrok-free.app/auth/shopify/callback",
+]
+
+[build]
+automatically_update_urls_on_dev = true
